@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
+    TextInput,
   TouchableOpacity,
   StyleSheet,
   Platform,
@@ -10,30 +10,59 @@ import {
   Dimensions,
   DrawerLayoutAndroid,
   SafeAreaView,
-  StatusBar
+  StatusBar,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
-import  {AlertTriangle, Info, Menu as MenuIcon, Eye, Camera as CameraIcon, CircleStop as StopCircle, Timer, X as CloseIcon, House  as Home, Settings as SettingsIcon, LogOut } from 'lucide-react-native';
+import { AlertTriangle, Info, Menu as MenuIcon, Eye, Camera as CameraIcon, CircleStop as StopCircle, House as Home, Settings as SettingsIcon, LogOut } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Colors from './constants/Colors';
 import SettingsScreen from './settings';
+import LogsScreen from './logs';
 
 const RECORDING_DURATION = 30; // seconds
 
 export default function OperatorScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [awbId, setAwbId] = useState('');
-  const [scanMode, setScanMode] = useState<'auto' | 'manual'>('manual');
-  const [scanType, setScanType] = useState<'F' | 'R'>('F');
   const [showLogs, setShowLogs] = useState(false);
+   const [scanMode, setScanMode] = useState<'auto' | 'manual'>('auto');
+    const [scanType, setScanType] = useState<'F' | 'R'>('F');
+    const [awbId, setAwbId] = useState('');
+    const [logType,setLogType] = useState("live")
   const [showSettings, setShowSettings] = useState(false);
   const [hasWebcam, setHasWebcam] = useState(false);
 
-  const drawerRef = useRef(DrawerLayoutAndroid);
+  const drawerRef = useRef<DrawerLayoutAndroid>(null);
   const cameraRef = useRef(null);
-  const logsAnimation = useRef(new Animated.Value(0)).current;
+  const logsAnimation = useRef(new Animated.Value(0)).current; // For logs drawer animation
   const scannerAnimation = useRef(new Animated.Value(1)).current;
+
+  // Toggle logs drawer
+ const toggleLogs = (logTypeNew) => {
+   if (logType !== logTypeNew) {
+     setLogType(logTypeNew);
+     if (!showLogs) {
+       Animated.timing(logsAnimation, {
+         toValue: 1,
+         duration: 300,
+         useNativeDriver: false,
+       }).start(() => setShowLogs(true));
+     }
+   } else {
+     Animated.timing(logsAnimation, {
+       toValue: showLogs ? 0 : 1,
+       duration: 300,
+       useNativeDriver: false,
+     }).start(() => setShowLogs(!showLogs));
+   }
+ };
+
+
+  // Calculate logs drawer height
+  const logsDrawerHeight = logsAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, Dimensions.get('window').height * 0.8], // 80% of screen height
+  });
 
   useEffect(() => {
     // Check for webcam
@@ -60,18 +89,6 @@ export default function OperatorScreen() {
       ])
     ).start();
   }, []);
-
-  const toggleLogs = () => {
-    if (!isRecording) return;
-
-    Animated.timing(logsAnimation, {
-      toValue: showLogs ? 0 : 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-
-    setShowLogs(!showLogs);
-  };
 
   const renderNavigationView = () => (
     <View style={styles.drawer}>
@@ -103,48 +120,54 @@ export default function OperatorScreen() {
   );
 
   const MainContent = () => (
- <SafeAreaView style={styles.safeContainer}>
+    <SafeAreaView style={styles.safeContainer}>
       {/* Status Bar */}
       <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
 
       {/* Header Buttons */}
-      <View style={[styles.headerButtons]}>
+      <View style={styles.headerButtons}>
         <TouchableOpacity
           style={[styles.headerButton, styles.menuButton]}
           onPress={() => drawerRef.current?.openDrawer()}
-
+          disabled={isRecording}
         >
           <MenuIcon size={28} color={Colors.gray} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.headerButton, styles.errorButton, !isRecording && styles.disabledButton]}
-          onPress={() => setShowLogs(!showLogs)}
-          disabled={isRecording}
+          style={[styles.headerButton, styles.errorButton]}
+          onPress={()=>toggleLogs('error')}
+           disabled={!isRecording}
         >
           <AlertTriangle size={24} color={Colors.white} />
           <View><Text style={styles.badgeText}>{0}</Text></View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.headerButton, styles.pendingButton, !isRecording && styles.disabledButton]}
-          onPress={() => setShowLogs(!showLogs)}
-          disabled={isRecording}
+          style={[styles.headerButton, styles.pendingButton]}
+           onPress={()=>toggleLogs('pending')}
+           disabled={!isRecording}
         >
           <Info size={24} color={Colors.white} />
           <View><Text style={styles.badgeText}>{0}</Text></View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.headerButton, styles.liveButton, !isRecording && styles.disabledButton]}
-          onPress={() => setShowLogs(!showLogs)}
-          disabled={isRecording}
+          style={[styles.headerButton, styles.liveButton]}
+          onPress={()=>toggleLogs('live')}
+           disabled={!isRecording}
         >
           <Eye size={24} color={Colors.white} />
         </TouchableOpacity>
       </View>
 
+      {/* Logs Drawer */}
+   {showLogs && (
+     <Animated.View style={[styles.logsDrawer, { height: logsDrawerHeight }]}>
+       <LogsScreen logType={logType} />
+     </Animated.View>
+   )}
+
       {/* Camera Feed */}
       <View style={styles.cameraContainer}>
         <CameraView ref={cameraRef} style={styles.camera}>
-          {/* Camera Overlay */}
           {!isRecording ? (
             <View style={styles.cameraOverlay}>
               <View style={styles.cameraControls}>
@@ -152,42 +175,59 @@ export default function OperatorScreen() {
                   <CameraIcon size={24} color={Colors.white} />
                   {hasWebcam && <Text style={styles.webcamIndicator}>c</Text>}
                 </View>
-                <Text style={styles.scanTypeIndicator}>{scanType}</Text>
+                 <Text style={styles.scanTypeIndicator}>{scanType}</Text>
               </View>
-
-
+              <View style={styles.inputContainer}>
+                                  <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter AWB ID"
+                                    value={awbId}
+                                    onChangeText={setAwbId}
+                                    placeholderTextColor={Colors.gray}
+                                  />
+                                  {scanMode === 'manual' && (
+                                     <View style={styles.buttonGroup}>
+                                       <TouchableOpacity style={[styles.button, styles.cancelButton]}>
+                                         <Text style={styles.buttonText}>Cancel</Text>
+                                       </TouchableOpacity>
+                                       <TouchableOpacity style={[styles.button, styles.proceedButton]}>
+                                         <Text style={styles.buttonText}>Proceed</Text>
+                                       </TouchableOpacity>
+                                     </View>
+                                   )}
+                                </View>
             </View>
           ) : (
             <View style={styles.recordingOverlay}>
               <StopCircle size={32} color={Colors.error} />
               <View style={styles.recordingOverlayTimeandButton}>
-              <Text style={styles.recordingTimer}>{RECORDING_DURATION - recordingDuration}s</Text>
-              <TouchableOpacity style={styles.stopButton} onPress={() => setIsRecording(false)}>
-                <Text style={styles.stopButtonText}>Stop Video</Text>
-              </TouchableOpacity>
+                <Text style={styles.recordingTimer}>{RECORDING_DURATION - recordingDuration}s</Text>
+                <TouchableOpacity style={styles.stopButton} onPress={() => setIsRecording(false)}>
+                  <Text style={styles.stopButtonText}>Stop Video</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
         </CameraView>
       </View>
+
       {/* Settings Modal */}
-            {showSettings && (
-                <SettingsScreen visible={showSettings} onClose={() => setShowSettings(false)} />
-            )}
+      {showSettings && (
+        <SettingsScreen visible={showSettings} onClose={() => setShowSettings(false)} />
+      )}
     </SafeAreaView>
   );
 
   if (Platform.OS === 'android') {
     return (
-    <DrawerLayoutAndroid
-      ref={drawerRef}
-      drawerWidth={300}
-      drawerPosition="left"
-      renderNavigationView={renderNavigationView}
-    >
-      <MainContent />
-    </DrawerLayoutAndroid>
-
+      <DrawerLayoutAndroid
+        ref={drawerRef}
+        drawerWidth={300}
+        drawerPosition="left"
+        renderNavigationView={renderNavigationView}
+      >
+        <MainContent />
+      </DrawerLayoutAndroid>
     );
   }
 
@@ -195,12 +235,7 @@ export default function OperatorScreen() {
 }
 
 const styles = StyleSheet.create({
-     safeContainer: {
-        flex: 1,
-        backgroundColor: Colors.white,
-//         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, // Avoids overlap with status bar
-      },
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: Colors.white,
   },
@@ -208,34 +243,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 16,
-    height : 'fit-content',
-    position: 'relative', // Keeps it in normal document flow
-    zIndex: 100, // Ensures it stays above other elements
-//     backgroundColor : Colors.primary
+    zIndex: 100, // Ensure header stays above logs drawer
   },
   headerButton: {
-         width : 60,
-            height: 60,
-            borderRadius: 4,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding : 12,
-            paddingTop: Platform.OS === 'ios' ? 50 : 20, // Ensure header does not overlap status bar
-            position: 'relative',
-    },
-  menuButton : {
-      backgroundColor : Colors.lightGray
-      },
-    liveButton: { backgroundColor: Colors.blue },
-        pendingButton: { backgroundColor: Colors.orange },
-        errorButton: { backgroundColor: Colors.red },
-  disabledButton: {
-    opacity: 0.5,
+    width: 60,
+    height: 60,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
   },
+  menuButton: {
+    backgroundColor: Colors.lightGray,
+  },
+  liveButton: { backgroundColor: Colors.blue },
+  pendingButton: { backgroundColor: Colors.orange },
+  errorButton: { backgroundColor: Colors.red },
   cameraContainer: {
-    height: '90%',
+    flex: 1,
     backgroundColor: Colors.black,
-    position: 'relative',
   },
   camera: {
     flex: 1,
@@ -244,6 +270,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.1)',
     padding: 16,
+    justifyContent : 'space-between'
   },
   cameraControls: {
     flexDirection: 'row',
@@ -254,7 +281,7 @@ const styles = StyleSheet.create({
   cameraStatus: {
     position: 'relative',
   },
-  webcamIndicator: {
+webcamIndicator: {
     position: 'absolute',
     top: -5,
     right: -5,
@@ -266,73 +293,43 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  scannerBorder: {
-    flex: 1,
-    margin: 32,
-    position: 'relative',
-  },
-  scannerCorner: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    borderColor: Colors.white,
-    borderWidth: 2,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-  },
   inputContainer: {
-    padding: 16,
-    gap: 8,
-  },
-  input: {
-    backgroundColor: Colors.white,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  buttonGroup: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  button: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: Colors.error,
-  },
-  proceedButton: {
-    backgroundColor: Colors.primary,
-  },
-  buttonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
+      padding: 16,
+      gap: 8,
+    },
+    input: {
+      backgroundColor: Colors.white,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+    },
+    buttonGroup: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    button: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    cancelButton: {
+      backgroundColor: Colors.error,
+    },
+    proceedButton: {
+      backgroundColor: Colors.primary,
+    },
+    buttonText: {
+      color: Colors.white,
+      fontSize: 16,
+      fontWeight: '600',
+    },
   recordingOverlay: {
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
-    padding : 16
+    padding: 16,
   },
   recordingTimer: {
     color: Colors.white,
@@ -349,49 +346,16 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
   },
-
   stopButtonText: {
     color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
-  recordingOverlayTimeandButton:{
-      display : 'flex',
-      justifyContent : "center",
-      alignItems: 'center',
-      },
-  logsOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 300,
-    backgroundColor: Colors.white,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    padding: 16,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  logsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  logsTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.black,
-  },
+
   drawer: {
     flex: 1,
     backgroundColor: Colors.white,
     padding: 16,
-
   },
   drawerHeader: {
     paddingVertical: 24,
@@ -414,9 +378,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.black,
   },
-      badgeText: {
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: '600',
-        },
+  badgeText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });

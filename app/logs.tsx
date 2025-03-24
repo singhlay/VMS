@@ -33,8 +33,8 @@ const SAMPLE_LOGS: Log[] = [
   },
 ];
 
-export default function LogsScreen() {
-  const [activeTab, setActiveTab] = useState<LogType>('live');
+export default function LogsScreen({ logType }: { logType: LogType }) {
+  const [activeTab, setActiveTab] = useState<LogType>(logType || 'pending');
 
   const getTabStyle = (tab: LogType) => [
     styles.tab,
@@ -65,30 +65,6 @@ export default function LogsScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>System Logs</Text>
-
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={getTabStyle('pending')}
-          onPress={() => setActiveTab('pending')}
-        >
-          <Eye size={24} color={getIconColor('pending')} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={getTabStyle('error')}
-          onPress={() => setActiveTab('error')}
-        >
-          <AlertTriangle size={24} color={getIconColor('error')} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={getTabStyle('live')}
-          onPress={() => setActiveTab('live')}
-        >
-          <Info size={24} color={getIconColor('live')} />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView style={styles.logContainer}>
         {filteredLogs.map((log) => (
           <View key={log.id} style={[styles.logEntry, getLogStyle(log.type)]}>
